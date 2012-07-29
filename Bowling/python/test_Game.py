@@ -1,5 +1,5 @@
 
-from Kata import Game
+from Game import Game
 from nose.tools import ok_, eq_, raises
 
 
