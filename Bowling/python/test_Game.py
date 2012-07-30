@@ -12,14 +12,30 @@ def test_roll():
     g.roll(3)
 
 
-def test_frame():
+def test_spare():
     g = Game()
+    g.roll(0)
     g.roll(1)
     g.roll(2)
-    g.roll(3)
+    g.roll(8)
     g.roll(4)
     g.roll(5)
-    assert g.frame() == [[1, 2], [3, 4], [5]]
+    assert g.frame() == [[0, 1], [2, 8], [4, 5]]
+    assert g.score() == 1 + 10 + 4 + 9
+
+
+@pytest.mark.parametrize(("input", "frame_expected", "score_expetected"), [
+    ([1, 2, 3, 4, 5], [[1, 2], [3, 4], [5]], 1 + 2 + 3 + 4 + 5), # normal case
+    ([10, 1, 2, 3, 4, 5], [[10], [1, 2], [3, 4], [5]], 10 + 3 + 3 + 7 + 5), # one strike
+    ([10, 1, 2, 10, 10, 5], [[10], [1, 2], [10], [10], [5]], 10 + 3 + 3 + 10 + 10 + 10 + 5 + 5), # two strike
+    ([0, 1, 2, 8, 4, 5], [[0, 1], [2, 8], [4, 5]], 1 + 10 + 4 + 9),
+])
+def test_frame(input, frame_expected, score_expetected):
+    g = Game()
+    for i in input:
+        g.roll(i)
+    assert g.frame() == frame_expected
+    assert g.score() == score_expetected
 
 
 def test_frames_over():
@@ -51,42 +67,6 @@ def test_frame_ten_over():
     g.roll(3)
     with pytest.raises(ValueError):
         g.roll(8)
-
-
-def test_strike():
-    g = Game()
-    g.roll(10)
-    g.roll(1)
-    g.roll(2)
-    g.roll(3)
-    g.roll(4)
-    g.roll(5)
-    assert g.frame() == [[10], [1, 2], [3, 4], [5]]
-    assert g.score() == 10 + 3 + 3 + 7 + 5
-
-
-def test_two_strike():
-    g = Game()
-    g.roll(10)
-    g.roll(1)
-    g.roll(2)
-    g.roll(10)
-    g.roll(10)
-    g.roll(5)
-    assert g.frame() == [[10], [1, 2], [10], [10], [5]]
-    assert g.score() == 10 + 3 + 3 + 10 + 10 + 10 + 5 + 5
-
-
-def test_spare():
-    g = Game()
-    g.roll(0)
-    g.roll(1)
-    g.roll(2)
-    g.roll(8)
-    g.roll(4)
-    g.roll(5)
-    assert g.frame() == [[0, 1], [2, 8], [4, 5]]
-    assert g.score() == 1 + 10 + 4 + 9
 
 
 def test_10_frame():
