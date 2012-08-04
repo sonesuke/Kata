@@ -77,4 +77,4 @@ class Game:
 
     @property
     def score(self):
-        return sum(map(lambda x: x.score, self.frames))
+        return reduce(lambda x, y: x + y.score, self.frames, 0)
