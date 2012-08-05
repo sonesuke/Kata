@@ -61,6 +61,15 @@ def test_10_frame(rolls, expected):
         g.roll(1)
 
 
+def test_10_frame_error():
+    g = Game()
+    for i in range(0, 18):
+        g.roll(1)
+
+    with pytest.raises(ValueError):
+        g.roll(11)
+
+
 def test_10_frame_2nd_roll():
     g = Game()
     for i in range(0, 18):
