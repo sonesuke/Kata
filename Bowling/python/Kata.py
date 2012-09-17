@@ -13,59 +13,11 @@ class Score:
         return self.score
 
 
-class Frame:
-
-    def __init__(self):
-        self.rolls = []
-
-    def is_full(self):
-        if self.is_strike():
-            return True
-        return len(self.rolls) == 2
-
-    def roll(self, pins):
-        if pins > 10:
-            raise ValueError
-        if len(self.rolls) > 0:
-            if self.rolls[-1] != 10 and self.rolls[-1] + pins > 10:
-                raise ValueError
-        self.rolls += [pins]
-
-    @property
-    def bonus_count(self):
-        if self.is_spare():
-            return 1
-        if self.is_strike():
-            return 2
-        return 0
-
-    def is_spare(self):
-        if self.is_strike():
-            return False
-        return sum(self.rolls) == 10
-
-    def is_strike(self):
-        return sum(self.rolls[:1]) == 10
-
-    def score(self, rolls):
-        rolls = rolls.take_n(self.bonus_count)
-        score = Score(sum(self.rolls))
-        return score + rolls.score
-
-
-class Frame10(Frame):
-
-    def is_full(self):
-        if sum(self.rolls[:1]) == 10:
-            return len(self.rolls) == 3
-        if sum(self.rolls[:2]) == 10:
-            return len(self.rolls) == 3
-        return len(self.rolls) == 2
-
-
 class Roll:
 
     def __init__(self, pins):
+        if pins > 10:
+            raise ValueError
         self.pins = pins
 
     @property
@@ -86,8 +38,7 @@ class Rolls:
     def from_frames(cls, frames):
         rolls = Rolls()
         for f in frames:
-            for r in f.rolls:
-                rolls.rolls += [Roll(r)]
+            rolls.rolls += f.rolls.rolls
         return rolls
 
     def take_n(self, count):
@@ -98,6 +49,62 @@ class Rolls:
     @property
     def score(self):
         return reduce(lambda x, y: x + y.score, self.rolls, Score())
+
+    def size_equal_to(self, size):
+        return len(self.rolls) == size
+
+    def is_spare(self):
+        if self.is_strike():
+            return False
+        return reduce(lambda x, y: x + y.value, self.rolls[:2], 0) == 10
+
+    def is_strike(self):
+        return reduce(lambda x, y: x + y.value, self.rolls[:1], 0) == 10
+
+    def over_10_in_continuous(self, roll):
+        if len(self.rolls) > 0:
+            if self.rolls[-1].value != 10 and self.rolls[-1].value + roll.value > 10:
+                return True
+        return False
+
+    def append(self, roll):
+        self.rolls += [roll]
+
+class Frame:
+
+    def __init__(self):
+        self.rolls = Rolls()
+
+    def is_full(self):
+        if self.rolls.is_strike():
+            return True
+        return self.rolls.size_equal_to(2)
+
+    def roll(self, roll):
+        if self.rolls.over_10_in_continuous(roll):
+            raise ValueError
+        self.rolls.append(roll)
+
+    @property
+    def bonus_count(self):
+        if self.rolls.is_spare():
+            return 1
+        if self.rolls.is_strike():
+            return 2
+        return 0
+
+    def score(self, rolls):
+        rolls = rolls.take_n(self.bonus_count)
+        score = self.rolls.score
+        return score + rolls.score
+
+
+class Frame10(Frame):
+
+    def is_full(self):
+        if self.rolls.is_strike() or self.rolls.is_spare():
+            return self.rolls.size_equal_to(3)
+        return self.rolls.size_equal_to(2)
 
 
 class Frames:
@@ -120,12 +127,13 @@ class Frames:
     def create_frame(self):
         self.frames += [self.create_next()]
 
-    def last_frame_roll(self, pins):
-        self.last_frame.roll(pins.value)
+    def last_frame_roll(self, roll):
+        self.last_frame.roll(roll)
 
     @property
     def sum_score(self):
-        f = lambda x, y: x + y.score(Rolls.from_frames(self.next_frame(y)))
+        remain_rolls = lambda x: Rolls.from_frames(self.next_frame(x))
+        f = lambda x, y: x + y.score(remain_rolls(y))
         return reduce(f, self.frames, Score())
 
     def next_frame(self, frame):
