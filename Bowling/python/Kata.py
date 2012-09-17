@@ -15,7 +15,7 @@ class Score:
 
 class Roll:
 
-    def __init__(self, pins):
+    def __init__(self, pins=0):
         if pins > 10:
             raise ValueError
         self.pins = pins
@@ -28,23 +28,27 @@ class Roll:
     def score(self):
         return Score(self.pins)
 
+    def is_10(self):
+        return self.pins == 10
+
+    def is_over(self):
+        return self.pins > 10
+
+    def __add__(self, rhs):
+        return Roll(self.pins + rhs.pins)
+
 
 class Rolls:
 
-    def __init__(self):
-        self.rolls = []
+    def __init__(self, rolls=None):
+        self.rolls = rolls if not rolls is None else []
 
     @classmethod
     def from_frames(cls, frames):
-        rolls = Rolls()
-        for f in frames:
-            rolls.rolls += f.rolls.rolls
-        return rolls
+        return Rolls(reduce(lambda x, y: x + y.rolls.rolls, frames, []))
 
     def take_n(self, count):
-        value = Rolls()
-        value.rolls += self.rolls[:count]
-        return value
+        return Rolls(self.rolls[:count])
 
     @property
     def score(self):
@@ -56,19 +60,23 @@ class Rolls:
     def is_spare(self):
         if self.is_strike():
             return False
-        return reduce(lambda x, y: x + y.value, self.rolls[:2], 0) == 10
+        return reduce(lambda x, y: x + y, self.rolls[:2], Roll()).is_10()
 
     def is_strike(self):
-        return reduce(lambda x, y: x + y.value, self.rolls[:1], 0) == 10
+        return reduce(lambda x, y: x + y, self.rolls[:1], Roll()).is_10()
+
+    @property
+    def last_roll(self):
+        return self.rolls[-1]
 
     def over_10_in_continuous(self, roll):
-        if len(self.rolls) > 0:
-            if self.rolls[-1].value != 10 and self.rolls[-1].value + roll.value > 10:
-                return True
-        return False
+        if len(self.rolls) == 0:
+            return False
+        return not self.last_roll.is_10() and (self.last_roll + roll).is_over()
 
     def append(self, roll):
         self.rolls += [roll]
+
 
 class Frame:
 
@@ -89,9 +97,7 @@ class Frame:
     def bonus_count(self):
         if self.rolls.is_spare():
             return 1
-        if self.rolls.is_strike():
-            return 2
-        return 0
+        return 2 if self.rolls.is_strike() else 0
 
     def score(self, rolls):
         rolls = rolls.take_n(self.bonus_count)
