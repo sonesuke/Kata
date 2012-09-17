@@ -32,10 +32,6 @@ class Frame:
         self.rolls += [pins]
 
     @property
-    def score(self):
-        return Score(sum(self.rolls))
-
-    @property
     def bonus_count(self):
         if self.is_spare():
             return 1
@@ -50,6 +46,11 @@ class Frame:
 
     def is_strike(self):
         return sum(self.rolls[:1]) == 10
+
+    def score(self, rolls):
+        rolls = rolls.take_n(self.bonus_count)
+        score = Score(sum(self.rolls))
+        return score + rolls.score
 
 
 class Frame10(Frame):
@@ -81,10 +82,13 @@ class Rolls:
     def __init__(self):
         self.rolls = []
 
-    def from_frames(self, frames):
+    @classmethod
+    def from_frames(cls, frames):
+        rolls = Rolls()
         for f in frames:
             for r in f.rolls:
-                self.rolls += [Roll(r)]
+                rolls.rolls += [Roll(r)]
+        return rolls
 
     def take_n(self, count):
         value = Rolls()
@@ -108,35 +112,25 @@ class Frames:
     def last_frame_is_full(self):
         return self.last_frame.is_full()
 
-    def create_frame(self):
-        if len(self.frames) == 9:
-            self.frames += [Frame10()]
-        elif len(self.frames) < 9:
-            self.frames += [Frame()]
-        else:
+    def create_next(self):
+        if len(self.frames) == 10:
             raise ValueError
+        return Frame10() if len(self.frames) == 9 else Frame()
+
+    def create_frame(self):
+        self.frames += [self.create_next()]
 
     def last_frame_roll(self, pins):
         self.last_frame.roll(pins.value)
 
     @property
     def sum_score(self):
-        return reduce(lambda x, y: x + y.score, self.frames, Score())
+        f = lambda x, y: x + y.score(Rolls.from_frames(self.next_frame(y)))
+        return reduce(f, self.frames, Score())
 
-    @property
-    def sum_bonus(self):
-        return self.add_bonus(Score())
-
-    def add_bonus(self, val):
-        for idx in range(len(self.frames)):
-            val += self.each_bonus(idx + 1, self.frames[idx].bonus_count)
-        return val
-
-    def each_bonus(self, idx, bonus_count):
-        rolls = Rolls()
-        rolls.from_frames(self.frames[idx:])
-        rolls = rolls.take_n(bonus_count)
-        return rolls.score
+    def next_frame(self, frame):
+        idx = self.frames.index(frame)
+        return self.frames[idx + 1:]
 
 
 class Game:
@@ -152,5 +146,4 @@ class Game:
     @property
     def score(self):
         score = self.frames.sum_score
-        score += self.frames.sum_bonus
         return score.value
