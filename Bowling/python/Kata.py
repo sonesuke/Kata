@@ -1,72 +1,79 @@
 
 
-class Roll:
+class Score:
 
     def __init__(self, value=0):
-        if value < 0 or 10 < value:
+        self.score = value
+
+    def __add__(self, rhs):
+        return Score(self.score + rhs.score)
+
+    @property
+    def value(self):
+        return self.score
+
+    def is_10(self):
+        return self.score == 10
+
+
+class Roll:
+
+    def __init__(self, pins=0):
+        if pins < 0 or 10 < pins:
             raise ValueError
-        self.value = value
+        self.roll = pins
 
     @property
     def score(self):
-        return Score(self.value)
+        return Score(self.roll)
 
-    def __add__(self, rhs):
-        if rhs is None:
-            return Roll(self.value)
-        return Roll(self.value + rhs.value)
+    def is_under_10(self):
+        return self.roll < 10
+
+    def validate_10_over_added_with(self, roll):
+        if roll is None:
+            return
+        Roll(self.roll + roll.roll)
 
 
 class Rolls:
 
-    def __init__(self, rolls=None):
-        self.rolls = [] if rolls is None else rolls
-
-    def calc_score(self):
-        return sum(map(lambda x: x.score, self.rolls), Score())
-
-    def take(self, count):
-        return Rolls(self.rolls[:count])
+    def __init__(self):
+        self.rolls = []
 
     def add(self, roll):
         self.rolls += [roll]
 
-    def __add__(self, rhs):
-        return Rolls(self.rolls + rhs.rolls)
+    def take(self, length):
+        r = Rolls()
+        r.rolls = self.rolls[:length]
+        return r
 
-    def is_spare(self):
-        if self.is_strike():
-            return False
-        return sum(map(lambda x: x.score, self.rolls[:2]), Score()).is_10()
+    def calc_score(self):
+        return sum(map(lambda x: x.score, self.rolls), Score())
 
-    def is_strike(self):
-        return sum(map(lambda x: x.score, self.rolls[:1]), Score()).is_10()
+    @property
+    def length(self):
+        return len(self.rolls)
 
-    def is_length_equal_to(self, length):
-        return len(self.rolls) == length
+    def is_10(self):
+        return self.calc_score().is_10()
 
-    def last_roll_is_10(self):
-        if self.last_roll is None:
-            return False
-        return self.last_roll.score.is_10()
+    def __add__(self, rolls):
+        r = Rolls()
+        r.rolls = self.rolls + rolls.rolls
+        return r
 
     @property
     def last_roll(self):
-        if len(self.rolls) > 0:
-            return self.rolls[-1]
-        return None
+        if len(self.rolls) == 0:
+            return None
+        return self.rolls[-1]
 
-
-class Score:
-
-    def __init__(self, value=0):
-        self.value = value
-
-    def __add__(self, rhs):
-        return Score(self.value + rhs.value)
-
-    def is_10(self):
-        return self.value == 10
+    def last_roll_is_under_10(self):
+        if self.last_roll is None:
+            return True
+        return self.last_roll.is_under_10()
 
 
 class Frame:
@@ -75,46 +82,54 @@ class Frame:
         self.rolls = Rolls()
 
     def roll(self, roll):
-        self.valid_10_over_in_frame(roll)
+        self.validate_over_pins_in_a_frame(roll)
         self.rolls.add(roll)
 
-    def valid_10_over_in_frame(self, roll):
-        if self.rolls.last_roll_is_10():
+    def validate_over_pins_in_a_frame(self, roll):
+        if not self.rolls.last_roll_is_under_10():
             return
-        roll + self.rolls.last_roll
+        roll.validate_10_over_added_with(self.rolls.last_roll)
 
-    def accept(self, aggregator):
-        aggregator.add(self.rolls)
+    def is_strike(self):
+        rolls = self.rolls.take(1)
+        return rolls.is_10()
+
+    def is_spare(self):
+        rolls = self.rolls.take(2)
+        return rolls.is_10()
 
     def is_full(self):
-        if self.rolls.is_strike():
+        if self.is_strike():
             return True
-        return self.rolls.is_length_equal_to(2)
+        return self.rolls.length == 2
 
-    def calc_bonus_count(self):
-        if self.rolls.is_strike():
+    @property
+    def bonus_count(self):
+        if self.is_strike():
             return 2
-        return 1 if self.rolls.is_spare() else 0
+        return 1 if self.is_spare() else 0
 
-    def calc_bonus(self, rolls_of_after_frame):
-        rolls = rolls_of_after_frame.take(self.calc_bonus_count())
+    def calc_bonus(self, rest_rolls):
+        rolls = rest_rolls.take(self.bonus_count)
         return rolls.calc_score()
 
-    def calc_score(self, rolls_of_after_frame):
-        score = self.rolls.calc_score()
-        score += self.calc_bonus(rolls_of_after_frame)
-        return score
+    def calc_score(self, rest_rolls):
+        score = self.calc_bonus(rest_rolls)
+        return score + self.rolls.calc_score()
+
+    def accept(self, gatherer):
+        gatherer.add(self.rolls)
 
 
 class Frame10(Frame):
 
     def is_full(self):
-        if self.rolls.is_strike() or self.rolls.is_spare():
-            return self.rolls.is_length_equal_to(3)
-        return self.rolls.is_length_equal_to(2)
+        if self.is_strike() or self.is_spare():
+            return self.rolls.length == 3
+        return self.rolls.length == 2
 
 
-class RollAggregator:
+class RollGatherer:
 
     def __init__(self):
         self.rolls = Rolls()
@@ -125,40 +140,46 @@ class RollAggregator:
     def add(self, rolls):
         self.rolls += rolls
 
-    def get_results(self):
+    @property
+    def result(self):
         return self.rolls
 
 
 class Frames:
 
     def __init__(self):
-        self.frames = [Frame()]
+        self.frames = []
 
-    @property
-    def last_frame(self):
-        return self.frames[-1]
+    def last_frame_is_full(self):
+        if self.last_frame is None:
+            return True
+        return self.last_frame.is_full()
 
     def create_frame(self):
         if len(self.frames) == 10:
             raise ValueError
-        self.frames += [Frame10()] if len(self.frames) == 9 else [Frame()]
+        self.frames += [Frame()] if len(self.frames) < 9 else [Frame10()]
+
+    @property
+    def last_frame(self):
+        if len(self.frames) == 0:
+            return None
+        return self.frames[-1]
 
     def roll(self, roll):
-        if self.last_frame.is_full():
+        if self.last_frame_is_full():
             self.create_frame()
         self.last_frame.roll(roll)
 
-    def get_after_frames(self, frame):
-        return self.frames[self.frames.index(frame) + 1:]
-
-    def rolls_of_after_frame(self, frame):
-        aggregator = RollAggregator()
-        map(lambda x: aggregator.visit(x), self.get_after_frames(frame))
-        return aggregator.get_results()
+    def rest_rolls(self, frame):
+        g = RollGatherer()
+        map(lambda x: g.visit(x), self.frames[self.frames.index(frame) + 1:])
+        return g.result
 
     def calc_score(self):
-        calc_score = lambda x: x.calc_score(self.rolls_of_after_frame(x))
-        return sum(map(lambda x: calc_score(x), self.frames), Score())
+        calc_score = lambda x: x.calc_score(self.rest_rolls(x))
+        score = sum(map(lambda x: calc_score(x), self.frames), Score())
+        return score
 
 
 class Game:
