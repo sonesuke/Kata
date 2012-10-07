@@ -1,4 +1,3 @@
-from peak.rules import when
 
 
 class Roll:
@@ -8,11 +7,11 @@ class Roll:
             raise ValueError
         self.pins = pins
 
-    def sweep(self, pins):
+    def knock_down(self, pins):
         return pins - self.pins
 
-    def to_score(self):
-        return Score(self.pins)
+    def to_pins(self):
+        return self.pins
 
 
 class Rolls:
@@ -23,16 +22,17 @@ class Rolls:
     def append(self, roll):
         self.rolls.append(roll)
 
-    def is_size_equal_to(self, size):
-        return len(self.rolls) == size
+    def __len__(self):
+        return len(self.rolls)
 
-    def apply_policy(self, policy):
-        map(lambda x: policy.calc_score(x), self.rolls)
-
-    def __add__(self, right_side):
+    def __add__(self, rhs):
         rolls = Rolls()
-        rolls.rolls = self.rolls + right_side.rolls
+        rolls.rolls = self.rolls + rhs.rolls
         return rolls
+
+    def __iter__(self):
+        for r in self.rolls:
+            yield r
 
     def take(self, count):
         rolls = Rolls()
@@ -40,86 +40,137 @@ class Rolls:
         return rolls
 
 
-class Pins:
+class RemainPins:
 
     def __init__(self):
         self.pins = 10
-        self.served = False
+        self.reseted = False
 
-    def accept(self, roll):
-        if roll.sweep(self.pins) < 0:
+    def knock_down_by(self, roll):
+        if roll.knock_down(self.pins) < 0:
             raise ValueError
-        self.pins = roll.sweep(self.pins)
+        self.pins = roll.knock_down(self.pins)
+
+    def reset(self):
+        self.pins = 10
+        self.reseted = True
 
     def is_empty(self):
         return self.pins == 0
 
-    def is_served(self):
-        return self.served
-
-    def serve(self):
-        self.pins = 10
-        self.served = True
+    def is_reseted(self):
+        return self.reseted
 
 
 class Frame:
 
     def __init__(self):
         self.rolls = Rolls()
-        self.remain_pins = Pins()
-
-    def apply_policy(self, policy):
-        policy.calc_score(self.rolls)
+        self.remain_pins = RemainPins()
 
     def append(self, roll):
-        self.remain_pins.accept(roll)
+        self.remain_pins.knock_down_by(roll)
         self.rolls.append(roll)
 
     def is_full(self):
         if self.remain_pins.is_empty():
             return True
-        return self.rolls.is_size_equal_to(2)
+        return len(self.rolls) == 2
+
+    def accept(self, gather):
+        gather.add(self.rolls)
 
     def is_empty(self):
         return self.remain_pins.is_empty()
 
-    def is_size_equal_to(self, size):
-        return self.rolls.is_size_equal_to(size)
-
-    def accept(self, gather):
-        gather.add(self.rolls)
+    def is_one_roll(self):
+        return len(self.rolls) == 1
 
 
 class LastFrame:
 
     def __init__(self):
+        self.remain_pins = RemainPins()
         self.rolls = Rolls()
-        self.remain_pins = Pins()
-
-    def apply_policy(self, policy):
-        policy.calc_score(self.rolls)
 
     def append(self, roll):
-        self.remain_pins.accept(roll)
+        self.remain_pins.knock_down_by(roll)
         self.rolls.append(roll)
-        self.serve_pins_as_necessary()
+        self.reset_remain_pins_if_empy()
 
-    def is_necessary_serve_pins(self):
-        if self.rolls.is_size_equal_to(3):
-            return False
-        return self.remain_pins.is_empty()
-
-    def serve_pins_as_necessary(self):
-        if self.is_necessary_serve_pins():
-            self.remain_pins.serve()
+    def reset_remain_pins_if_empy(self):
+        if self.remain_pins.is_empty():
+            self.remain_pins.reset()
 
     def is_full(self):
-        if self.remain_pins.is_served():
-            return self.rolls.is_size_equal_to(3)
-        return self.rolls.is_size_equal_to(2)
+        if self.remain_pins.is_reseted():
+            return len(self.rolls) == 3
+        return len(self.rolls) == 2
 
     def accept(self, gather):
         gather.add(self.rolls)
+
+    def is_empty(self):
+        return self.remain_pins.is_empty()
+
+    def is_one_roll(self):
+        return len(self.rolls) == 1
+
+
+class FrameFactory:
+
+    @classmethod
+    def create(cls, frame_index):
+        if frame_index == 10:
+            return LastFrame()
+        return Frame()
+
+
+class Frames:
+
+    def __init__(self):
+        self.frames = []
+        self.create_next_frame()
+
+    def get_rest_frames(self, frame):
+        index = self.frames.index(frame)
+        return self.frames[index + 1:]
+
+    def get_last_frame(self):
+        return self.frames[-1]
+
+    def append(self, roll):
+        self.get_last_frame().append(roll)
+        if self.get_last_frame().is_full() and self.is_not_max_frame():
+            self.create_next_frame()
+
+    def create_next_frame(self):
+        next_frame_index = len(self.frames) + 1
+        self.frames += [FrameFactory.create(next_frame_index)]
+
+    def is_full(self):
+        if self.is_not_max_frame():
+            return False
+        return self.get_last_frame().is_full()
+
+    def is_not_max_frame(self):
+        return len(self.frames) != 10
+
+    def __iter__(self):
+        for f in self.frames:
+            yield f
+
+
+class Score:
+
+    def __init__(self, value):
+        self.value = value
+
+    def to_number(self):
+        return self.value
+
+    def __add__(self, rhs):
+        return Score(self.value + rhs.value)
 
 
 class RollGather:
@@ -137,176 +188,67 @@ class RollGather:
         return self.rolls
 
 
-class FrameFactory:
+class NormalScoringRule:
 
-    @classmethod
-    def create(cls, frame_index):
-        return LastFrame() if frame_index == 9 else Frame()
+    def calc_score(self, frames):
+        rolls = self.get_all_rolls(frames)
+        return sum(map(lambda x: Score(x.to_pins()), rolls), Score(0))
 
-
-class Frames:
-
-    def __init__(self):
-        self.frames = [FrameFactory.create(1)]
-
-    def get_current_frame_index(self):
-        return len(self.frames)
-
-    def get_last_frame(self):
-        return self.frames[-1]
-
-    def create_next_frame(self):
-        current_index = self.get_current_frame_index()
-        self.frames += [FrameFactory.create(current_index)]
-
-    def append(self, roll):
-        self.get_last_frame().append(roll)
-        if self.get_last_frame().is_full() and not self.is_max_frame():
-            self.create_next_frame()
-
-    def is_max_frame(self):
-        return len(self.frames) == 10
-
-    def is_full(self):
-        return self.is_max_frame() and self.get_last_frame().is_full()
-
-    def apply_policy(self, policy):
-        map(lambda x: policy.calc_score(x), self.frames)
-
-    def get_after_frames(self, frame):
-        next_frame_index = self.frames.index(frame) + 1
-        return self.frames[next_frame_index:]
-
-    def get_rest_rolls(self, frame):
+    def get_all_rolls(self, frames):
         g = RollGather()
-        map(lambda x: g.visit(x), self.get_after_frames(frame))
+        map(lambda x: g.visit(x), frames)
         return g.to_rolls()
 
 
-class Score:
+class BonusScoringRule:
 
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, is_bonus_frame, bonus_count):
+        self.is_bonus_frame = is_bonus_frame
+        self.bonus_count = bonus_count
 
-    def to_number(self):
-        return self.value
-
-    def __add__(self, score):
-        return Score(self.value + score.value)
-
-
-class SweepPins:
-
-    def __init__(self):
-        self.score = Score(0)
-
-    def calc_score(self, target):
-        target.apply_policy(self)
-
-    def to_score(self):
-        return self.score
-
-    @when(calc_score, (Roll,))
-    def calc_score(self, roll):
-        self.score += roll.to_score()
-
-
-class Strike:
-
-    def __init__(self):
-        self.score = Score(0)
-        self.frames = None
-
-    def calc_score(self, target):
-        target.apply_policy(self)
-
-    def to_score(self):
-        return self.score
-
-    def is_strike(self, frame):
-        if not frame.is_empty():
-            return False
-        return frame.is_size_equal_to(1)
-
-    @when(calc_score, (Frames,))
     def calc_score(self, frames):
         self.frames = frames
-        frames.apply_policy(self)
-
-    @when(calc_score, (Frame,))
-    def calc_score(self, frame):
-        if self.is_strike(frame):
-            self.calc_bonus(frame)
-
-    @when(calc_score, (LastFrame,))
-    def calc_score(self, frame):
-        pass
-
-    @when(calc_score, (Roll,))
-    def calc_score(self, roll):
-        self.score += roll.to_score()
+        bonus_frames = [f for f in self.frames if self.is_bonus_frame(f)]
+        return sum(map(lambda x: self.calc_bonus(x), bonus_frames), Score(0))
 
     def calc_bonus(self, frame):
-        rest_rolls = self.frames.get_rest_rolls(frame)
-        bonus_rolls = rest_rolls.take(2)
-        bonus_rolls.apply_policy(self)
+        rolls = self.get_rest_roll(frame)
+        bonus_rolls = rolls.take(self.bonus_count)
+        return sum(map(lambda r: Score(r.to_pins()), bonus_rolls), Score(0))
+
+    def get_rest_roll(self, frame):
+        gather = RollGather()
+        map(lambda x: gather.visit(x), self.frames.get_rest_frames(frame))
+        return gather.to_rolls()
 
 
-class Spare:
+class ScoringRules:
 
     def __init__(self):
-        self.score = Score(0)
-        self.frames = None
+        self.rules = [NormalScoringRule()]
+        self.rules.append(self.create_spare_rule())
+        self.rules.append(self.create_strike_rule())
 
-    def calc_score(self, target):
-        target.apply_policy(self)
+    def create_spare_rule(self):
+        is_spare = lambda f: f.is_empty() and not f.is_one_roll()
+        return BonusScoringRule(is_spare, 1)
 
-    def to_score(self):
-        return self.score
+    def create_strike_rule(self):
+        is_strike = lambda f: f.is_empty() and f.is_one_roll()
+        return BonusScoringRule(is_strike, 2)
 
-    def is_spare(self, frame):
-        if not frame.is_empty():
-            return False
-        return not frame.is_size_equal_to(1)
-
-    @when(calc_score, (Frames, ))
-    def calc_score(self, frames):
-        self.frames = frames
-        frames.apply_policy(self)
-
-    @when(calc_score, (Frame, ))
-    def calc_score(self, frame):
-        if self.is_spare(frame):
-            self.calc_bonus(frame)
-
-    @when(calc_score, (LastFrame,))
-    def calc_score(self, frame):
-        pass
-
-    @when(calc_score, (Roll, ))
-    def calc_score(self, roll):
-        self.score += roll.to_score()
-
-    def calc_bonus(self, frame):
-        rest_rolls = self.frames.get_rest_rolls(frame)
-        bonus_rolls = rest_rolls.take(1)
-        bonus_rolls.apply_policy(self)
-
-
-class PoliciesFacotry:
-    @classmethod
-    def create(cls):
-        return [SweepPins(), Strike(), Spare()]
+    def __iter__(self):
+        for rule in self.rules:
+            yield rule
 
 
 class Scorer:
 
-    def __init__(self):
-        self.policies = PoliciesFacotry.create()
-
-    def calc_score(self, frames):
-        map(lambda x: x.calc_score(frames), self.policies)
-        return sum(map(lambda x: x.to_score(), self.policies), Score(0))
+    @classmethod
+    def calc_score(cls, frames):
+        scores = map(lambda rule: rule.calc_score(frames), ScoringRules())
+        score = sum(scores, Score(0))
+        return score
 
 
 class Game:
@@ -319,10 +261,6 @@ class Game:
             raise ValueError
         self.frames.append(Roll(pins))
 
-    def get_current_frame_index(self):
-        return self.frames.get_current_frame_index()
-
     def calc_score(self):
-        s = Scorer()
-        score = s.calc_score(self.frames)
+        score = Scorer.calc_score(self.frames)
         return score.to_number()
