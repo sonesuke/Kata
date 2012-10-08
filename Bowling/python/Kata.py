@@ -217,26 +217,28 @@ class BonusScoringRule:
         return gather.to_rolls()
 
 
+class IsStrike:
+
+    def __call__(self, frame):
+        return frame.is_empty() and frame.is_one_roll()
+
+
+class IsSpare:
+
+    def __call__(self, frame):
+        return frame.is_empty() and not frame.is_one_roll()
+
+
 class ScoringRules:
 
     def __init__(self):
         self.rules = [NormalScoringRule()]
-        self.rules += [self.create_spare_rule()]
-        self.rules += [self.create_strike_rule()]
+        self.rules += [BonusScoringRule(IsStrike(), 2)]
+        self.rules += [BonusScoringRule(IsSpare(), 1)]
 
     def __iter__(self):
         for rule in self.rules:
             yield rule
-
-    def create_spare_rule(self):
-        def is_bonus_frame(frame):
-            return frame.is_empty() and not frame.is_one_roll()
-        return BonusScoringRule(is_bonus_frame, 1)
-
-    def create_strike_rule(self):
-        def is_bonus_frame(frame):
-            return frame.is_empty() and frame.is_one_roll()
-        return BonusScoringRule(is_bonus_frame, 2)
 
 
 class Scorer:
