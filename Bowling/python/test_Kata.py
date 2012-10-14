@@ -1,4 +1,4 @@
-#1959
+#930 10:11
 import pytest
 from Kata import Game
 
@@ -46,14 +46,14 @@ def test_score():
     assert g.calc_score() == 3
 
 
-def test_all_spare():
+def test_spare():
     g = Game()
     for i in range(21):
         g.roll(5)
     assert g.calc_score() == 150
 
 
-def test_all_strike():
+def test_strike():
     g = Game()
     for i in range(12):
         g.roll(10)
