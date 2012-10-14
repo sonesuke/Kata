@@ -7,11 +7,33 @@ class Roll:
             raise ValueError
         self.pins = pins
 
+    def knock_down(self, pins):
+        return pins - self.pins
+
     def to_pins(self):
         return self.pins
 
-    def knock_down(self, pins):
-        return pins - self.pins
+
+class Rolls:
+
+    def __init__(self, rolls=None):
+        self.rolls = [] if rolls is None else rolls
+
+    def append(self, roll):
+        self.rolls.append(roll)
+
+    def take(self, count):
+        return Rolls(self.rolls[:count])
+
+    def __len__(self):
+        return len(self.rolls)
+
+    def __add__(self, rhs):
+        return Rolls(self.rolls + rhs.rolls)
+
+    def __iter__(self):
+        for r in self.rolls:
+            yield r
 
 
 class PinsServer:
@@ -36,11 +58,11 @@ class RemainPins:
         self.pins = roll.knock_down(self.pins)
         self.pins = self.reset_policy(self.pins)
 
-    def is_reseted(self):
-        return self.reset_policy.is_reseted()
-
     def is_empty(self):
         return self.pins == 0
+
+    def is_reseted(self):
+        return self.reset_policy.is_reseted()
 
 
 class NotResetIfEmpty:
@@ -68,28 +90,6 @@ class ResetIfEmpty:
         return self.reseted
 
 
-class Rolls:
-
-    def __init__(self, rolls=None):
-        self.rolls = [] if rolls is None else rolls
-
-    def append(self, roll):
-        self.rolls.append(roll)
-
-    def __len__(self):
-        return len(self.rolls)
-
-    def __iter__(self):
-        for r in self.rolls:
-            yield r
-
-    def __add__(self, rhs):
-        return Rolls(self.rolls + rhs.rolls)
-
-    def take(self, count):
-        return Rolls(self.rolls[:count])
-
-
 class Frame:
 
     def __init__(self, remain_pins, is_full_policy):
@@ -115,13 +115,11 @@ class Frame:
 
 
 class IsFull:
-
     def __call__(self, remain_pins, rolls):
         return True if remain_pins.is_empty() else len(rolls) == 2
 
 
-class IsFullWithBonusRoll:
-
+class IsFullWithBonus:
     def __call__(self, remain_pins, rolls):
         return len(rolls) == 3 if remain_pins.is_reseted() else len(rolls) == 2
 
@@ -131,7 +129,7 @@ class FrameFactory:
     @classmethod
     def create(cls, frame_index):
         if frame_index == 10:
-            return Frame(RemainPins(ResetIfEmpty()), IsFullWithBonusRoll())
+            return Frame(RemainPins(ResetIfEmpty()), IsFullWithBonus())
         return Frame(RemainPins(NotResetIfEmpty()), IsFull())
 
 
@@ -139,34 +137,34 @@ class Frames:
 
     def __init__(self):
         self.frames = []
-        self.setup_next()
+        self.create_frame()
 
-    def setup_next(self):
+    def create_frame(self):
         next_frame_index = len(self.frames) + 1
         self.frames += [FrameFactory.create(next_frame_index)]
 
     def append(self, roll):
         self.last().append(roll)
         if self.last().is_full() and not self.is_max():
-            self.setup_next()
-
-    def last(self):
-        return self.frames[-1]
-
-    def is_max(self):
-        return len(self.frames) == 10
+            self.create_frame()
 
     def is_full(self):
         return False if not self.is_max() else self.last().is_full()
 
-    def __iter__(self):
-        for f in self.frames:
-            yield f
+    def is_max(self):
+        return len(self.frames) == 10
+
+    def last(self):
+        return self.frames[-1]
 
     def rests(self, frame):
         fs = Frames()
         fs.frames = self.frames[self.frames.index(frame) + 1:]
         return fs
+
+    def __iter__(self):
+        for f in self.frames:
+            yield f
 
 
 class RollGather:
@@ -174,7 +172,7 @@ class RollGather:
     def __init__(self):
         self.rolls = Rolls()
 
-    def gather_all_rolls(self, frames):
+    def gather_by(self, frames):
         [self.visit(f) for f in frames]
         return self.rolls
 
@@ -188,8 +186,20 @@ class RollGather:
 class NormalScoringRule:
 
     def calc_score(self, frames):
-        rolls = RollGather().gather_all_rolls(frames)
+        rolls = RollGather().gather_by(frames)
         return sum([Score(r.to_pins()) for r in rolls], Score(0))
+
+
+class IsSpare:
+
+    def __call__(self, frame):
+        return frame.is_empty() and not frame.is_one_roll()
+
+
+class IsStrike:
+
+    def __call__(self, frame):
+        return frame.is_empty() and frame.is_one_roll()
 
 
 class BonusScoringRule:
@@ -204,25 +214,13 @@ class BonusScoringRule:
         return sum([self.calc_bonus(f) for f in bonus_frames], Score(0))
 
     def calc_bonus(self, frame):
-        rest_frames = self.frames.rests(frame)
-        bonus_rolls = self.gather_bonus_rolls(rest_frames)
+        rolls = self.gather_rest_rolls(frame)
+        bonus_rolls = rolls.take(self.bonus_count)
         return sum([Score(r.to_pins()) for r in bonus_rolls], Score(0))
 
-    def gather_bonus_rolls(self, rest_frames):
-        rolls = RollGather().gather_all_rolls(rest_frames)
-        return rolls.take(self.bonus_count)
-
-
-class IsSpare:
-
-    def __call__(self, frame):
-        return frame.is_empty() and not frame.is_one_roll()
-
-
-class IsStrike:
-
-    def __call__(self, frame):
-        return frame.is_empty() and frame.is_one_roll()
+    def gather_rest_rolls(self, frame):
+        rest_frames = self.frames.rests(frame)
+        return RollGather().gather_by(rest_frames)
 
 
 class Score:
