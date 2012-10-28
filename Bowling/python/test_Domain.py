@@ -1,6 +1,6 @@
 #930 10:11
 import pytest
-from Kata import Game
+from Domain import Game
 
 
 def test_create():
