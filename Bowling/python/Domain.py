@@ -170,6 +170,9 @@ class Frames:
         for f in self.frames:
             yield f
 
+    def __len__(self):
+        return len(self.frames)
+
 
 class RollGather:
 

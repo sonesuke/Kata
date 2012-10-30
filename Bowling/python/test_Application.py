@@ -1,28 +1,35 @@
 import pytest
-import mock
+from unittest.mock import Mock, call
 from Domain import Game
-from Application import SaveService
+from Application import SaveService, LoadService
 
 
-def test_create():
-    archive = mock.Mock()
+def test_create_save_service():
+    archive = Mock()
     s = SaveService(archive)
 
 
 def test_save():
-    archive = mock.Mock()
+    archive = Mock()
     g = Game()
+    g.roll(3)
     s = SaveService(archive)
     s.save(g)
-    assert archive.write_header.call_args_list[0] == mock.call('game')
-    assert archive.write_header.call_args_list[1] == mock.call('frames')
-    assert archive.write_header.call_args_list[2] == mock.call('frame')
-    assert archive.write_header.call_args_list[3] == mock.call('rolls')
-    assert archive.write_footer.call_args_list[0] == mock.call('rolls')
-    assert archive.write_footer.call_args_list[1] == mock.call('frame')
-    assert archive.write_footer.call_args_list[2] == mock.call('frames')
-    assert archive.write_footer.call_args_list[3] == mock.call('game')
+    assert archive.write_header.call_count == 5
+    assert archive.write_footer.call_count == 5
+    assert archive.write_count.call_args == call(1)
+    assert archive.write_body.call_args == call(3)
+
+
+def test_create_load_service():
+    archive = Mock()
+    s = SaveService(archive)
 
 
 def test_load():
-    pass
+    archive = Mock()
+    archive.load_count.return_value = 1
+    archive.load_body.return_value = 3
+    l = LoadService(archive)
+    g = l.load()
+    assert g.calc_score() == 3
