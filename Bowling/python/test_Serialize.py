@@ -1,7 +1,7 @@
 import pytest
-from unittest.mock import Mock, call
-from Domain import Game
-from Application import SaveService, LoadService
+from unittest.mock import Mock, call, patch
+from Model import Game
+from Serialize import SaveService, LoadService
 
 
 def test_create_save_service():
@@ -30,6 +30,8 @@ def test_load():
     archive = Mock()
     archive.load_count.return_value = 1
     archive.load_body.return_value = 3
-    l = LoadService(archive)
-    g = l.load()
+    with patch('Serialize.Unpack') as m:
+        m.__enter__.return_value = True
+        l = LoadService(archive)
+        g = l.load()
     assert g.calc_score() == 3

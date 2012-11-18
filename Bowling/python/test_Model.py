@@ -1,6 +1,6 @@
 #930 10:11
 import pytest
-from Domain import Game
+from Model import Game
 
 
 def test_create():

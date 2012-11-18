@@ -1,4 +1,4 @@
-from Domain import Game, Roll
+from Model import Game, Roll
 
 
 class Archive:
