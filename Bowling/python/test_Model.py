@@ -37,24 +37,3 @@ def test_count_of_last_frame():
     g = Game()
     for i in range(12):
         g.roll(10)
-
-
-def test_score():
-    g = Game()
-    assert g.calc_score() == 0
-    g.roll(3)
-    assert g.calc_score() == 3
-
-
-def test_spare():
-    g = Game()
-    for i in range(21):
-        g.roll(5)
-    assert g.calc_score() == 150
-
-
-def test_strike():
-    g = Game()
-    for i in range(12):
-        g.roll(10)
-    assert g.calc_score() == 300

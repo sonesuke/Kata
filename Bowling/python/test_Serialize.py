@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import Mock, call, patch
 from Model import Game
 from Serialize import SaveService, LoadService
+from ScoreService import Scorer
 
 
 def test_create_save_service():
@@ -34,4 +35,4 @@ def test_load():
         m.__enter__.return_value = True
         l = LoadService(archive)
         g = l.load()
-    assert g.calc_score() == 3
+    assert Scorer.calc_score(g.frames) == 3
