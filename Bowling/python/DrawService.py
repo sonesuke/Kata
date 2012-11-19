@@ -1,4 +1,4 @@
-from ScoreService import Scorer
+from ScoreService import Scorer, IsSpare, IsStrike
 
 
 class DeviceContext:
@@ -34,4 +34,9 @@ class DrawService:
 
     def draw_pins(self, frame):
         pins = [str(r.to_pins()) for r in frame.rolls]
+        if IsSpare()(frame):
+            pins[1] = '/'
+        if IsStrike()(frame):
+            pins[0] = 'X'
+            pins += ['']
         self.context.draw_pins(pins)

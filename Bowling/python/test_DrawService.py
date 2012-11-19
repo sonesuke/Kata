@@ -33,6 +33,25 @@ def test_draw_pins():
     assert dc.draw_pins.call_args_list[2] == call(['4'])
 
 
+def test_draw_spare_pins():
+    g = Game()
+    g.roll(2)
+    g.roll(8)
+    dc = Mock()
+    d = DrawService(dc)
+    d.draw(g)
+    assert dc.draw_pins.call_args_list[0] == call(['2', '/'])
+
+
+def test_draw_strike_pins():
+    g = Game()
+    g.roll(10)
+    dc = Mock()
+    d = DrawService(dc)
+    d.draw(g)
+    assert dc.draw_pins.call_args_list[0] == call(['X', ''])
+
+
 def test_draw_score():
     g = Game()
     for i in range(5):

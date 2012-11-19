@@ -1,5 +1,5 @@
 import pytest
-from ConsoleDevice import Console
+from Console import Console
 
 
 def test_create():
@@ -18,11 +18,7 @@ def test_draw_pins():
     assert c.pins_line == '  1  2  3  4'
 
 
-def test_draw_pins():
+def test_draw_score():
     c = Console()
     c.draw_score(5)
     assert c.score_line == '     5'
-
-
-def test_flush():
-    pass

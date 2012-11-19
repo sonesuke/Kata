@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, call, patch
 from Model import Game
-from Serialize import SaveService, LoadService
+from SerializeService import SaveService, LoadService
 from ScoreService import Scorer
 
 
@@ -31,7 +31,7 @@ def test_load():
     archive = Mock()
     archive.load_count.return_value = 1
     archive.load_body.return_value = 3
-    with patch('Serialize.Unpack') as m:
+    with patch('SerializeService.Unpack') as m:
         m.__enter__.return_value = True
         l = LoadService(archive)
         g = l.load()

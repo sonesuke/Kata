@@ -1,4 +1,4 @@
-from Serialize import Archive
+from SerializeService import Archive
 
 
 class TextArchive(Archive):
