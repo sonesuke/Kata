@@ -27,6 +27,9 @@ class Archive:
     def load_body(self):
         raise NotImplemented
 
+    def close(self):
+        raise NotImplemented
+
 
 class Pack:
 
@@ -51,6 +54,7 @@ class SaveService:
         with Pack(self.archive, "game"):
             frames = game.frames
             self.save_frames(frames)
+        self.archive.close()
 
     def save_frames(self, frames):
         with Pack(self.archive, "frames"):
@@ -97,6 +101,7 @@ class LoadService:
     def load(self):
         with Unpack(self.archive, "game"):
             self.load_frames()
+        self.archive.close()
         return self.create_game()
 
     def load_frames(self):
