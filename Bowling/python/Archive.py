@@ -29,3 +29,6 @@ class TextArchive(Archive):
 
     def load_body(self):
         return int(self.stream.readline().rstrip())
+
+    def close(self):
+        self.stream.close()
