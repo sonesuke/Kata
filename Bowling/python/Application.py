@@ -1,10 +1,10 @@
 import cmd
 
-from Model import Game
+from Model import Game, RollService
 from DrawService import DrawService
 from Console import Console
 from SerializeService import SaveService, LoadService
-from Archive import TextArchive
+from Stream import TextStream
 
 
 class CUI(cmd.Cmd):
@@ -22,10 +22,10 @@ class CUI(cmd.Cmd):
     do_quit_ = do_EOF
 
     def do_save(self, path):
-        SaveService(TextArchive(open(path, 'w'))).save(self.game)
+        SaveService(TextStream(open(path, 'w'))).save(self.game)
 
     def do_load(self, path):
-        self.game = LoadService(TextArchive(open(path, 'r'))).load()
+        self.game = LoadService(TextStream(open(path, 'r'))).load()
         self.draw_game()
 
     def do_new(self, args):
@@ -33,7 +33,7 @@ class CUI(cmd.Cmd):
         self.draw_game()
 
     def do_roll(self, pins):
-        self.game.roll(int(pins))
+        RollService.roll(self.game, int(pins))
         self.draw_game()
 
     def draw_game(self):

@@ -1,7 +1,7 @@
-from SerializeService import Archive
+from SerializeService import Stream
 
 
-class TextArchive(Archive):
+class TextStream(Stream):
 
     def __init__(self, stream):
         self.stream = stream

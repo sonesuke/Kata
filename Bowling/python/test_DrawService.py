@@ -1,5 +1,5 @@
 import pytest
-from Model import Game
+from Model import Game, RollService
 from DrawService import DrawService
 from unittest.mock import Mock, call
 
@@ -9,53 +9,50 @@ def test_create():
     d = DrawService(dc)
 
 
-def test_draw_frame_no():
+def test_draw_index():
     g = Game()
     for i in range(5):
-        g.roll(3)
+        RollService.roll(g, 3)
     dc = Mock()
     d = DrawService(dc)
     d.draw(g)
-    assert dc.draw_frame_no.call_count == 1
-    assert dc.draw_frame_no.call_args == call(3)
+    assert dc.draw_index.call_count == 3
 
 
 def test_draw_pins():
     g = Game()
     for i in range(5):
-        g.roll(i)
+        RollService.roll(g, i)
     dc = Mock()
     d = DrawService(dc)
     d.draw(g)
-    assert dc.draw_pins.call_count == 3
-    assert dc.draw_pins.call_args_list[0] == call(['0', '1'])
-    assert dc.draw_pins.call_args_list[1] == call(['2', '3'])
-    assert dc.draw_pins.call_args_list[2] == call(['4'])
+    assert dc.draw_pins.call_count == 5
 
 
 def test_draw_spare_pins():
     g = Game()
-    g.roll(2)
-    g.roll(8)
+    RollService.roll(g, 2)
+    RollService.roll(g, 8)
     dc = Mock()
     d = DrawService(dc)
     d.draw(g)
-    assert dc.draw_pins.call_args_list[0] == call(['2', '/'])
+    assert dc.draw_pins.call_args_list[0] == call(2)
+    assert dc.draw_spare.call_count == 1
 
 
 def test_draw_strike_pins():
     g = Game()
-    g.roll(10)
+    RollService.roll(g, 10)
     dc = Mock()
     d = DrawService(dc)
     d.draw(g)
-    assert dc.draw_pins.call_args_list[0] == call(['X', ''])
+    assert dc.draw_strike.call_args_list[0] == call()
 
 
 def test_draw_score():
     g = Game()
     for i in range(5):
-        g.roll(i)
+        RollService.roll(g, i)
     dc = Mock()
     d = DrawService(dc)
     d.draw(g)

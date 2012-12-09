@@ -1,7 +1,7 @@
 from Model import Game, Roll
 
 
-class Archive:
+class Stream:
 
     def write_header(self, tag):
         raise NotImplemented
@@ -52,7 +52,7 @@ class SaveService:
 
     def save(self, game):
         with Pack(self.archive, "game"):
-            frames = game.frames
+            frames = game.get_frames()
             self.save_frames(frames)
         self.archive.close()
 
@@ -63,7 +63,7 @@ class SaveService:
 
     def save_frame(self, frame):
         with Pack(self.archive, "frame"):
-            rolls = frame.rolls
+            rolls = frame.get_rolls()
             self.save_rolls(rolls)
 
     def save_rolls(self, rolls):
@@ -96,33 +96,29 @@ class LoadService:
 
     def __init__(self, archive):
         self.archive = archive
-        self.rolls = []
 
     def load(self):
         with Unpack(self.archive, "game"):
-            self.load_frames()
+            g = Game()
+            self.load_frames(g.frames)
         self.archive.close()
-        return self.create_game()
+        return g
 
-    def load_frames(self):
+    def load_frames(self, frames):
         with Unpack(self.archive, "frames"):
             count = self.archive.load_count()
-            [self.load_frame() for i in range(count)]
+            [self.load_frame(frames) for i in range(count)]
 
-    def load_frame(self):
+    def load_frame(self, frames):
         with Unpack(self.archive, "frame"):
-            self.load_rolls()
+            frames.create_next()
+            [frames.last().append(r) for r in self.load_rolls()]
 
     def load_rolls(self):
         with Unpack(self.archive, "rolls"):
-            count = self.archive.load_count()
-            [self.load_roll() for i in range(count)]
+            for i in range(self.archive.load_count()):
+                yield self.load_roll()
 
     def load_roll(self):
         with Unpack(self.archive, "roll"):
-            self.rolls += [self.archive.load_body()]
-
-    def create_game(self):
-        g = Game()
-        [g.roll(r) for r in self.rolls]
-        return g
+            return Roll(self.archive.load_body())

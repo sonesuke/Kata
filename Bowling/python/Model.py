@@ -1,5 +1,187 @@
 
 
+class Score:
+
+    def __init__(self, value):
+        self.value = value
+
+    def to_number(self):
+        return self.value
+
+    def __add__(self, rhs):
+        return Score(self.value + rhs.value)
+
+
+class NormalScoringRule:
+
+    @classmethod
+    def calculate(cls, frames):
+        return sum([cls.calculate_frame(f) for f in frames], Score(0))
+
+    @classmethod
+    def calculate_frame(cls, frame):
+        return Score(sum([r.to_pins() for r in frame.get_rolls()]))
+
+
+class BonusScoringRule:
+
+    @classmethod
+    def calculate(cls, frames):
+        return sum([cls.calculate_frame(f, frames) for f in frames], Score(0))
+
+    @classmethod
+    def calculate_frame(cls, frame, frames):
+        bonus_count = BonusRules.get_bonus_count(frame.get_rolls())
+        rolls = cls.get_rest_rolls(frame, frames)
+        return Score(sum([r.to_pins() for r in rolls[:bonus_count]]))
+
+    @classmethod
+    def get_rest_rolls(cls, frame, frames):
+        rest_frames = [f for f in frames if f.get_index() > frame.get_index()]
+        return sum([f.get_rolls() for f in rest_frames], Rolls())
+
+
+class ScoreService:
+
+    @classmethod
+    def calculate(cls, game):
+        return cls.calculate_frames(game.frames)
+
+    @classmethod
+    def calculate_frames(cls, frames):
+        rules = [NormalScoringRule, BonusScoringRule]
+        score = sum([r.calculate(frames) for r in rules], Score(0))
+        return score.to_number()
+
+
+class StrikeRule:
+
+    @classmethod
+    def is_satisfied_by(cls, rolls):
+        return len(rolls) == 1 and RemainPins(rolls).is_refleshed()
+
+    def get_bonus_count(self):
+        return 2
+
+
+class SpareRule:
+
+    @classmethod
+    def is_satisfied_by(cls, rolls):
+        return len(rolls) != 1 and RemainPins(rolls).is_refleshed()
+
+    def get_bonus_count(self):
+        return 1
+
+
+class BonusRules:
+
+    rules = [StrikeRule, SpareRule]
+
+    @classmethod
+    def is_any(cls, rolls):
+        return any([rule.is_satisfied_by(rolls) for rule in cls.rules])
+
+    @classmethod
+    def get_bonus_count(cls, rolls):
+        satisfied_rule = [r for r in cls.rules if r.is_satisfied_by(rolls)]
+        return sum([rule.get_bonus_count(rolls) for rule in satisfied_rule])
+
+
+class IsFullCount:
+
+    @classmethod
+    def is_satisfied_by(cls, frame):
+        if cls.is_last_frame_with_bonus(frame):
+            return len(frame.get_rolls()) == 3
+        return cls.is_full(frame)
+
+    @classmethod
+    def is_full(cls, frame):
+        if RemainPins(frame.get_rolls()).is_refleshed(): return True
+        return len(frame.get_rolls()) == 2
+
+    @classmethod
+    def is_last_frame_with_bonus(cls, frame):
+        if not IsLastFrame.is_satisfied_by(frame):
+            return False
+        return BonusRules.is_any(frame.get_rolls())
+
+
+class IsLastFrame:
+
+    @classmethod
+    def is_satisfied_by(cls, frame):
+        return frame.get_index() == 10
+
+
+class IsGameFull:
+
+    @classmethod
+    def is_satisfied_by(cls, frames):
+        if frames.is_empty(): return False
+        if not IsLastFrame.is_satisfied_by(frames.last()): return False
+        return IsFullCount.is_satisfied_by(frames.last())
+
+
+class RollService:
+
+    @classmethod
+    def roll(cls, game, pins):
+        if IsGameFull.is_satisfied_by(game.get_frames()):
+            raise ValueError
+        cls.roll_to_frames(game.get_frames(), Roll(pins))
+
+    @classmethod
+    def roll_to_frames(cls, frames, roll):
+        if frames.is_empty(): frames.create_next()
+        cls.roll_to_frame(frames.last(), roll)
+        if cls.is_full(frames.last()): frames.create_next()
+
+    @classmethod
+    def is_full(cls, frame):
+        if IsLastFrame.is_satisfied_by(frame):
+            return False
+        return IsFullCount.is_satisfied_by(frame)
+
+    @classmethod
+    def roll_to_frame(cls, frame, roll):
+        RemainPins(frame.get_rolls()).knock_down_by(roll)
+        frame.append(roll)
+
+
+class PinsServer:
+
+    @classmethod
+    def serve(cls):
+        return 10
+
+
+class RemainPins:
+
+    def __init__(self, rolls):
+        self.pins = PinsServer.serve()
+        self.refleshed = False
+        [self.knock_down_by(r) for r in rolls]
+
+    def knock_down_by(self, roll):
+        if roll.knock_down(self.pins) < 0:
+            raise ValueError
+        self.update(roll)
+
+    def update(self, roll):
+        self.pins = roll.knock_down(self.pins)
+        self.reflesh_if_nessary()
+
+    def reflesh_if_nessary(self):
+        if self.pins == 0:
+            self.pins = PinsServer.serve()
+            self.refleshed = True
+
+    def is_refleshed(self):
+        return self.refleshed
+
+
 class Roll:
 
     def __init__(self, pins):
@@ -22,146 +204,48 @@ class Rolls:
     def append(self, roll):
         self.rolls.append(roll)
 
+    def __iter__(self):
+        for r in self.rolls:
+            yield r
+
     def __len__(self):
         return len(self.rolls)
 
     def __add__(self, rhs):
         return Rolls(self.rolls + rhs.rolls)
 
-    def __iter__(self):
-        for r in self.rolls:
-            yield r
-
-    def take(self, count):
-        return Rolls(self.rolls[:count])
-
-
-class PinServer:
-
-    @classmethod
-    def serve(cls):
-        return 10
-
-
-class RemainPins:
-
-    def __init__(self, reset_policy):
-        self.pins = PinServer.serve()
-        self.reset_policy = reset_policy
-
-    def knock_down_by(self, roll):
-        if roll.knock_down(self.pins) < 0:
-            raise ValueError
-        self.update_by(roll)
-
-    def update_by(self, roll):
-        self.pins = roll.knock_down(self.pins)
-        self.pins = self.reset_policy.update(self.pins)
-
-    def is_empty(self):
-        return self.pins == 0
-
-    def is_reseted(self):
-        return self.reset_policy.is_reseted()
-
-
-class NotResetIfEmpty:
-
-    def update(self, pins):
-        return pins
-
-    def is_reseted(self):
-        return False
-
-
-class ResetIfEmpty:
-
-    def __init__(self):
-        self.reseted = False
-
-    def update(self, pins):
-        return self.reset() if pins == 0 else pins
-
-    def reset(self):
-        self.reseted = True
-        return PinServer.serve()
-
-    def is_reseted(self):
-        return self.reseted
+    def __getitem__(self, key):
+        if isinstance(key, int): return Rolls([self.rolls[key]])
+        return Rolls(self.rolls[key])
 
 
 class Frame:
 
-    def __init__(self, remain_pins, is_full_policy):
-        self.is_full_policy = is_full_policy
-        self.remain_pins = remain_pins
+    def __init__(self, index):
         self.rolls = Rolls()
+        self.index = index
+
+    def get_index(self):
+        return self.index
 
     def append(self, roll):
-        self.remain_pins.knock_down_by(roll)
         self.rolls.append(roll)
 
-    def is_full(self):
-        return self.is_full_policy(self.remain_pins, self.rolls)
-
-    def accept(self, gather):
-        gather.add(self.rolls)
-
-    def is_empty(self):
-        return self.remain_pins.is_empty()
-
-    def is_one_roll(self):
-        return len(self.rolls) == 1
-
-
-class IsFull:
-
-    def __call__(self, remain_pins, rolls):
-        return True if remain_pins.is_empty() else len(rolls) == 2
-
-
-class IsFullWithBonus:
-
-    def __call__(self, remain_pins, rolls):
-        return len(rolls) == 3 if remain_pins.is_reseted() else len(rolls) == 2
-
-
-class FrameFactory:
-
-    @classmethod
-    def create(cls, frame_index):
-        if frame_index == 10:
-            return Frame(RemainPins(ResetIfEmpty()), IsFullWithBonus())
-        return Frame(RemainPins(NotResetIfEmpty()), IsFull())
+    def get_rolls(self):
+        return self.rolls
 
 
 class Frames:
 
     def __init__(self):
         self.frames = []
-        self.create_frame()
 
-    def rest(self, frame):
-        fs = Frames()
-        fs.frames = self.frames[self.frames.index(frame) + 1:]
-        return fs
+    def is_empty(self):
+        return len(self.frames) == 0
 
-    def create_frame(self):
-        next_frame_index = len(self.frames) + 1
-        self.frames += [FrameFactory.create(next_frame_index)]
-
-    def append(self, roll):
-        self.last().append(roll)
-        if self.last().is_full() and not self.is_max():
-            self.create_frame()
-
-    def is_full(self):
-        if not self.is_max():
-            return False
-        return self.last().is_full()
-
-    def is_max(self):
-        return len(self.frames) == 10
+    def create_next(self):
+        index = len(self.frames) + 1
+        self.frames.append(Frame(index))
 
     def last(self):
         return self.frames[-1]
@@ -184,7 +268,5 @@ class Game:
     def __init__(self):
         self.frames = Frames()
 
-    def roll(self, pins):
-        if self.frames.is_full():
-            raise ValueError
-        self.frames.append(Roll(pins))
+    def get_frames(self):
+        return self.frames

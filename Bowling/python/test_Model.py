@@ -1,6 +1,5 @@
-#930 10:11
 import pytest
-from Model import Game
+from Model import Game, RollService, ScoreService
 
 
 def test_create():
@@ -9,31 +8,54 @@ def test_create():
 
 def test_roll():
     g = Game()
-    g.roll(3)
+    RollService.roll(g, 3)
 
 
-def test_raise_exception_by_invalid_roll():
+def test_invalid_roll():
     g = Game()
-    with pytest.raises(ValueError):
-        g.roll(-1)
+    with pytest.raises(Exception):
+        RollService.roll(g, -1)
 
 
-def test_raise_exception_by_pins_over_in_a_frame():
+def test_too_many_pins_in_a_frame():
     g = Game()
-    g.roll(3)
+    RollService.roll(g, 3)
     with pytest.raises(ValueError):
-        g.roll(8)
+        RollService.roll(g, 8)
 
 
-def test_raise_exception_by_frames_over():
+def test_max_frame_without_bonus():
     g = Game()
     for i in range(20):
-        g.roll(0)
-    with pytest.raises(ValueError):
-        g.roll(0)
+        RollService.roll(g, 1)
+    with pytest.raises(Exception):
+        RollService.roll(g, 1)
 
 
-def test_count_of_last_frame():
+def test_max_frame_with_bonus():
+    g = Game()
+    for i in range(21):
+        RollService.roll(g, 5)
+    with pytest.raises(Exception):
+        RollService.roll(g, 1)
+
+
+def test_calc_score():
+    g = Game()
+    assert ScoreService.calculate(g) == 0
+    RollService.roll(g, 3)
+    assert ScoreService.calculate(g) == 3
+
+
+def test_calc_all_strike():
     g = Game()
     for i in range(12):
-        g.roll(10)
+        RollService.roll(g, 10)
+    assert ScoreService.calculate(g) == 300
+
+
+def test_calc_all_spare():
+    g = Game()
+    for i in range(21):
+        RollService.roll(g, 5)
+    assert ScoreService.calculate(g) == 150
